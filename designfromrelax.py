@@ -67,7 +67,7 @@ def main(target=None):
     multi_min.set_preapply(False)
     
     # Job distributor for designs
-    job = pyrosetta.toolbox.py_jobdistributor.PyJobDistributor('1BTL_design', 10, scorefxn)
+    job = pyrosetta.toolbox.py_jobdistributor.PyJobDistributor('1BTL_design', 3, scorefxn)
     job.native_pose = original_pose
     pose = pyrosetta.Pose()
 
