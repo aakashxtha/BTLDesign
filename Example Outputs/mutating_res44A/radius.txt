@@ -1,0 +1,3 @@
+Design shell: 8A      Repack shell: 12A
+Design shell: 11A      Repack shell: 15A
+Design shell: 11A      Repack shell: 15A
