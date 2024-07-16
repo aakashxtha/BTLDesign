@@ -42,7 +42,7 @@ def main(target=None, filename=None, run=None):
     fr.apply(btl)
     print("Relaxed score: ", scorefxn.score(btl))
     relaxed_pose = btl.clone()
-    btl.dump_pdb(f"relaxed_{filename}")
+    btl.dump_pdb(f"relaxed_{run}_{filename}")
     
     # # Setup MoveMap for flexible backbone
     # mm = pyrosetta.rosetta.core.kinematics.MoveMap()
@@ -74,7 +74,7 @@ def main(target=None, filename=None, run=None):
     multi_min.set_preapply(False)
 
     # Job distributor for designs
-    job = pyrosetta.toolbox.py_jobdistributor.PyJobDistributor(f'{base}_design_{run}_', 10, scorefxn)
+    job = pyrosetta.toolbox.py_jobdistributor.PyJobDistributor(f'{base}_design_{run}', 10, scorefxn)
     job.native_pose = original_pose
     pose = pyrosetta.Pose()
 
@@ -82,7 +82,7 @@ def main(target=None, filename=None, run=None):
         pose.assign(relaxed_pose)
         design_around(pose, target)# design
         pose.dump_pdb("afterdesign.pdb")
-        i = print_mutations(original_pose, pose, job.current_id) #prints the mutations
+        i = print_mutations(original_pose, pose, job.current_name) #prints the mutations
         if len(i) == 0:
             continue
         multi_min.apply(pose)# minimization
@@ -128,7 +128,7 @@ def design_around(pose, target):
     print("Design: ", scorefxn.score(pose))
     print_radius(design_radius)
 
-def print_mutations(original_pose, designed_pose, job_num):
+def print_mutations(original_pose, designed_pose, job_name):
     """Prints and logs the mutations between the original and designed poses."""
     original_seq = original_pose.sequence()
     designed_seq = designed_pose.sequence()
@@ -138,7 +138,7 @@ def print_mutations(original_pose, designed_pose, job_num):
             resid = original_pose.pdb_info().pose2pdb(i+1)
             mutations.append(f"{original_seq[i]}{resid.split()[0]}{designed_seq[i]}")
             # mutations.append(f"{original_seq[i]}{i+1}{designed_seq[i]}")
-    mutations_str = f"Design_{job_num} - Mutations: " + ", ".join(mutations)
+    mutations_str = f"{job_name} - Mutations: " + ", ".join(mutations)
     print(mutations_str)
     with open("mutations.txt", "a") as mutation_file:
         if not len(mutations) == 0:
