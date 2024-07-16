@@ -28,7 +28,7 @@ def main(target=None, filename=None):
     btl = pyrosetta.pose_from_pdb(f"{base}.clean.pdb")
     original_pose = btl.clone()
     scorefxn = pyrosetta.get_fa_scorefxn()
-    print(scorefxn.score(btl))
+    print("Original score: ", scorefxn.score(btl))
 
     # Setup directory structure
     main_dir = os.getcwd()
@@ -40,13 +40,19 @@ def main(target=None, filename=None):
     fr = pyrosetta.rosetta.protocols.relax.FastRelax()
     fr.set_scorefxn(scorefxn)
     fr.apply(btl)
-    print(scorefxn.score(btl))
+    print("Relaxed score: ", scorefxn.score(btl))
     relaxed_pose = btl.clone()
     btl.dump_pdb(f"relaxed_{filename}")
+    
+    # # Setup MoveMap for flexible backbone
+    # mm = pyrosetta.rosetta.core.kinematics.MoveMap()
+    # mm.set_bb(True)
+    # mm.set_chi(True)
+    # mm.set_jump(True)
 
-    # Setup MoveMap for flexible backbone
+    # Setup MoveMap for fixed backbone
     mm = pyrosetta.rosetta.core.kinematics.MoveMap()
-    mm.set_bb(True)
+    mm.set_bb(False)
     mm.set_chi(True)
     mm.set_jump(True)
 
@@ -68,27 +74,30 @@ def main(target=None, filename=None):
     multi_min.set_preapply(False)
 
     # Job distributor for designs
-    job = pyrosetta.toolbox.py_jobdistributor.PyJobDistributor(f'{base}_design', 2, scorefxn)
+    job = pyrosetta.toolbox.py_jobdistributor.PyJobDistributor(f'{base}_design', 10, scorefxn)
     job.native_pose = original_pose
     pose = pyrosetta.Pose()
 
     while not job.job_complete:
         pose.assign(relaxed_pose)
-        design_around(pose, target, scorefxn)# design
+        design_around(pose, target)# design
+        pose.dump_pdb("afterdesign.pdb")
         i = print_mutations(original_pose, pose) #prints the mutations
         if len(i) == 0:
             continue
         multi_min.apply(pose)# minimization
-        print(scorefxn.score(pose))
-        # fr.apply(pose) # relax
-        # print(scorefxn.score(pose))
+        pose.dump_pdb("afterminimize.pdb")
+        print("Minimize: ", scorefxn.score(pose))
+        fr.apply(pose) # relax
+        print("FinalRelax: ", scorefxn.score(pose))
         job.output_decoy(pose)
 
     os.chdir(main_dir)
 
     
-def design_around(pose, target, scorefxn):
+def design_around(pose, target):
     """Setups the design around protocol and design the pose accordingly."""
+    scorefxn = pyrosetta.get_fa_scorefxn()
     #Selectors
     target_residue = pyrosetta.rosetta.core.select.residue_selector.ResidueIndexSelector(str(target))
     design_radius = random.randint(8, 12)
@@ -116,7 +125,7 @@ def design_around(pose, target, scorefxn):
     prm.task_factory(tf)
     prm.score_function(scorefxn)
     prm.apply(pose)    
-    print(scorefxn.score(pose))
+    print("Design: ", scorefxn.score(pose))
     print_radius(design_radius)
 
 def print_mutations(original_pose, designed_pose):
@@ -126,7 +135,7 @@ def print_mutations(original_pose, designed_pose):
     mutations = []
     for i in range(0, original_pose.total_residue()):
         if original_seq[i] != designed_seq[i]:
-            resid = original_pose.pdb_info().pose2pdb(i)
+            resid = original_pose.pdb_info().pose2pdb(i+1)
             mutations.append(f"{original_seq[i]}{resid.split()[0]}{designed_seq[i]}")
             # mutations.append(f"{original_seq[i]}{i+1}{designed_seq[i]}")
     mutations_str = "Mutations: " + ", ".join(mutations)
@@ -156,4 +165,4 @@ if __name__ == "__main__":
     # Run protocol
     main(target=args.target, filename=args.filename)
 
-# python script.py -t $target -f $filname
+# python design.py -t $target -f $filname
