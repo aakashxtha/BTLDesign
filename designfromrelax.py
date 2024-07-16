@@ -81,15 +81,15 @@ def main(target=None):
         pose.assign(relaxed_pose)
         design_around(pose, target)# design
         pose.dump_pdb("afterdesign.pdb") 
-        i = print_mutations(original_pose, pose) #prints the mutations
+        i = print_mutations(original_pose, pose, job.current_id) #prints the mutations
         if len(i) == 0:
             continue
-        multi_min.apply(pose)# minimization
-        pose.dump_pdb("afterminimize.pdb")
-        print("Minimize: ", scorefxn.score(pose))
-        fr.apply(pose) # relax
+        # multi_min.apply(pose)# minimization
+        # pose.dump_pdb("afterminimize.pdb")
+        # print("Minimize: ", scorefxn.score(pose))
+        # fr.apply(pose) # relax
         # print(scorefxn.score(pose))
-        print("FinalRelax: ", scorefxn.score(pose))
+        # print("FinalRelax: ", scorefxn.score(pose))
         job.output_decoy(pose)
     os.chdir(main_dir)
     
@@ -127,7 +127,7 @@ def design_around(pose, target):
     print("Design", scorefxn.score(pose))
     print_radius(design_radius)
     
-def print_mutations(original_pose, designed_pose):
+def print_mutations(original_pose, designed_pose, job_num):
     """Prints and logs the mutations between the original and designed poses."""
     original_seq = original_pose.sequence()
     designed_seq = designed_pose.sequence()
@@ -137,7 +137,7 @@ def print_mutations(original_pose, designed_pose):
             resid = original_pose.pdb_info().pose2pdb(i+1)
             mutations.append(f"{original_seq[i]}{resid.split()[0]}{designed_seq[i]}")
             # mutations.append(f"{original_seq[i]}{i+1}{designed_seq[i]}")
-    mutations_str = "Mutations: " + ", ".join(mutations)
+    mutations_str = f"Design_{job_num} - Mutations: " + ", ".join(mutations)
     print(mutations_str)
     with open("mutations.txt", "a") as mutation_file:
         if not len(mutations) == 0:
