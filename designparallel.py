@@ -163,3 +163,5 @@ if __name__ == "__main__":
 
     # Run protocol
     main(target=args.target, filename=args.filename, run=args.run)
+
+# python designparallel.py -t $target -f $filename -r $run_num
