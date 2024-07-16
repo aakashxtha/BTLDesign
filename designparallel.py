@@ -81,12 +81,10 @@ def main(target=None, filename=None, run=None):
     while not job.job_complete:
         pose.assign(relaxed_pose)
         design_around(pose, target)# design
-        pose.dump_pdb("afterdesign.pdb")
         i = print_mutations(original_pose, pose, job.current_name) #prints the mutations
         if len(i) == 0:
             continue
         multi_min.apply(pose)# minimization
-        pose.dump_pdb("afterminimize.pdb")
         print("Minimize: ", scorefxn.score(pose))
         fr.apply(pose) # relax
         print("FinalRelax: ", scorefxn.score(pose))
