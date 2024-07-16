@@ -9,4 +9,4 @@
 
 prot = $1
 
-/packages/envs/pyrosetta-2023/bin/python designparallel.py -t $2 -f {prot}.pdb -r $3
+/packages/envs/pyrosetta-2023/bin/python designparallel.py -t $2 -f ${prot}.pdb -r $3
