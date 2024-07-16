@@ -7,6 +7,6 @@
 #SBATCH -e slurm.%j.err # file to save job's STDERR (%j = JobId)
 #SBATCH --export=NONE   # Purge the job-submitting shell environment
 
-prot = $1
+prot=$1
 
 /packages/envs/pyrosetta-2023/bin/python designparallel.py -t $2 -f ${prot}.pdb -r $3
