@@ -1,0 +1,149 @@
+import os
+import random
+import argparse
+import pyrosetta
+
+def main(target=None, filename=None, run=None):
+    # Initialize PyRosetta with custom flags
+    pyrosetta.init('''
+        -relax:default_repeats 5
+        -relax:constrain_relax_to_start_coords
+        -relax:coord_constrain_sidechains
+        -relax:ramp_constraints false
+        -score::hbond_params correct_params
+        -no_his_his_pairE
+        -extrachi_cutoff 1
+        -multi_cool_annealer 10
+        -ex1 -ex2
+        -use_input_sc
+        -flip_HNQ
+        -ignore_unrecognized_res
+        -relax:coord_cst_stdev 0.5
+    ''')
+
+    # Clean pdb
+    pyrosetta.toolbox.cleaning.cleanATOM(filename)
+    # Load the cleaned PDB
+    base = os.path.splitext(filename)[0]
+    btl = pyrosetta.pose_from_pdb(f"{base}.clean.pdb")
+    original_pose = btl.clone()
+    scorefxn = pyrosetta.get_fa_scorefxn()
+    print("Original score: ", scorefxn.score(btl))
+
+    # Setup directory structure
+    main_dir = os.getcwd()
+    output_dir = os.path.join("Outputs", f"mutating_res{target}")
+    os.makedirs(output_dir, exist_ok=True)
+    os.chdir(output_dir)
+
+    # FastRelax 
+    fr = pyrosetta.rosetta.protocols.relax.FastRelax()
+    fr.set_scorefxn(scorefxn)
+    fr.apply(btl)
+    print("Relaxed score: ", scorefxn.score(btl))
+    relaxed_pose = btl.clone()
+    btl.dump_pdb(f"relaxed_{run}_{filename}")
+
+    # Job distributor for designs
+    job = pyrosetta.toolbox.py_jobdistributor.PyJobDistributor(f'{base}_design_{run}', 1, scorefxn)
+    job.native_pose = original_pose
+    pose = pyrosetta.Pose()
+
+    while not job.job_complete:
+        pose.assign(relaxed_pose)
+        fastdesign(pose, target)# design
+        i = print_mutations(original_pose, pose, job.current_name) #prints the mutations
+        if len(i) == 0:
+            continue
+        fr.apply(pose) # relax
+        print("FinalScore: ", scorefxn.score(pose))
+        job.output_decoy(pose)
+
+    os.chdir(main_dir)
+
+    
+def fastdesign(pose, target):
+    """Setups the design around protocol and design the pose accordingly."""
+    scorefxn = pyrosetta.get_fa_scorefxn()
+    #Selectors
+    target_residue = pyrosetta.rosetta.core.select.residue_selector.ResidueIndexSelector(str(target))
+    design_radius = random.randint(8, 12)
+    design_shell = pyrosetta.rosetta.core.select.residue_selector.NeighborhoodResidueSelector(target_residue, design_radius, False)
+    repack_shell = pyrosetta.rosetta.core.select.residue_selector.NeighborhoodResidueSelector(target_residue, design_radius + 4, True)
+    # Important residues that should not be designed
+    imp_residues = "2,19,20,37,42,45,48,51,82,97,105,107,120,141,142,149,158,194,201,209,218,226,230,235"
+    imp_residue_selector = pyrosetta.rosetta.core.select.residue_selector.ResidueIndexSelector(imp_residues)
+
+    # Setup TaskFactory
+    tf = pyrosetta.rosetta.core.pack.task.TaskFactory()
+    # Task operations
+    tf.push_back(pyrosetta.rosetta.core.pack.task.operation.InitializeFromCommandline())
+    tf.push_back(pyrosetta.rosetta.core.pack.task.operation.IncludeCurrent())
+    tf.push_back(pyrosetta.rosetta.core.pack.task.operation.NoRepackDisulfides())
+    tf.push_back(pyrosetta.rosetta.core.pack.task.operation.OperateOnResidueSubset(
+        pyrosetta.rosetta.core.pack.task.operation.RestrictToRepackingRLT(), imp_residue_selector, False))
+    tf.push_back(pyrosetta.rosetta.core.pack.task.operation.OperateOnResidueSubset(
+        pyrosetta.rosetta.core.pack.task.operation.RestrictToRepackingRLT(), design_shell, True))
+    tf.push_back(pyrosetta.rosetta.core.pack.task.operation.OperateOnResidueSubset(
+        pyrosetta.rosetta.core.pack.task.operation.PreventRepackingRLT(), repack_shell, True))
+    
+    # Setup MoveMap for fixed backbone
+    mm = pyrosetta.rosetta.core.kinematics.MoveMap()
+    mm.set_bb(False)
+    mm.set_chi(True)
+    mm.set_jump(True)
+        
+    # # Setup MoveMap for flexible backbone
+    # mm = pyrosetta.rosetta.core.kinematics.MoveMap()
+    # mm.set_bb(True)
+    # mm.set_chi(True)
+    # mm.set_jump(True)
+
+    # Mover Setup
+    fd = pyrosetta.rosetta.protocols.denovo_design.movers.FastDesign(scorefxn_in=scorefxn, script_file="MonomerDesign2019")
+    fd.set_task_factory(tf)
+    fd.set_movemap(mm)
+    fd.set_scorefxn(scorefxn)
+    fd.apply(pose)    
+    print("Design: ", scorefxn.score(pose))
+    print_radius(design_radius)
+
+def print_mutations(original_pose, designed_pose, job_name):
+    """Prints and logs the mutations between the original and designed poses."""
+    original_seq = original_pose.sequence()
+    designed_seq = designed_pose.sequence()
+    mutations = []
+    for i in range(0, original_pose.total_residue()):
+        if original_seq[i] != designed_seq[i]:
+            resid = original_pose.pdb_info().pose2pdb(i+1)
+            mutations.append(f"{original_seq[i]}{resid.split()[0]}{designed_seq[i]}")
+            # mutations.append(f"{original_seq[i]}{i+1}{designed_seq[i]}")
+    mutations_str = f"{job_name} - Mutations: " + ", ".join(mutations)
+    print(mutations_str)
+    with open("mutations.txt", "a") as mutation_file:
+        if not len(mutations) == 0:
+            mutation_file.write(mutations_str + "\n")
+        else:
+            mutation_file.write("\n")
+        mutation_file.close()
+    return mutations
+
+def print_radius(radius):
+    """Prints and logs the radius of design shell and repack shell."""
+    radius_str = f"Design shell: {radius}A      Repack shell: {radius+4}A"
+    print(radius_str)
+    with open("radius.txt", "a") as radius_file:
+        radius_file.write(radius_str + "\n")
+        radius_file.close()            
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-t", "--target", type=str, help="Target residue to mutate as integer.")
+    parser.add_argument("-f", "--filename", type=str, help="Filename of the pdb. Has to be in .pdb format")
+    parser.add_argument("-r", "--run", type=int)
+    args = parser.parse_args()
+
+    # Run protocol
+    main(target=args.target, filename=args.filename, run=args.run)
+
+# python designparallel.py -t $target -f $filename -r $run_num
