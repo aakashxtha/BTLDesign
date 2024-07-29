@@ -58,16 +58,17 @@ Command line:
 ```
 python design.py -t <target_residue> -f <pdb_filename>
 ```
-or
-```
-python designparallel.py -t <target_residue> -f <pdb_filename> -r 1
-```
 - `<target_residue>`: Can be in PDB numbering (e.g., `44A`) or pose numbering (e.g., `19`)
 - `<pdb_filename>`: Input PDB file
 
 Example:
 ```
 python design.py -t 44A -f 1BTL.pdb
+```
+
+Using SLURM:
+```
+./parallel.sh 1BTL <target_residue> 1
 ```
 Estimated runtime: 1-2 hours on a standard desktop computer. Generates 10 design structures and a score file (.fasc).
 
