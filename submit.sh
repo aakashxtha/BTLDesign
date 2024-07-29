@@ -8,4 +8,4 @@
 #SBATCH --export=NONE   # Purge the job-submitting shell environment
 
 
-/packages/envs/pyrosetta-2023/bin/python designfromrelax.py -t 44A
+/packages/envs/pyrosetta-2023/bin/python designfromrelax.py -t $1
