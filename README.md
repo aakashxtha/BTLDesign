@@ -40,7 +40,7 @@ This project focuses on computational protein design using PyRosetta, specifical
 ## Installation
 1. Clone the repository:
    ```
-   git clone https://github.com/axtha-np/BTLDesign.git
+   git clone https://github.com/aakashxtha/BTLDesign.git
    cd BTLDesign
    ```
 2. Ensure PyRosetta is installed in your environment. The scripts use the PyRosetta environment located at `/packages/envs/pyrosetta-2023/` on the SOL computer.
